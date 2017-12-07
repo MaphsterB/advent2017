@@ -74,19 +74,85 @@ def part1(input_lines):
     What is the name of the bottom program?
     """
     # This is a DAG problem. We need to form a dependency graph.
-    processed = [parse(line) for line in input_lines if line]
-    # Well, for part 1 we really just need to find the one program no one else is
-    # holding up. So... it shouted, but no one shouted its name.
-    dependents = {
-        dep
-            for (prog, weight, holding) in processed
+    tower = get_tower(input_lines)
+    return find_root(tower)
+
+
+def get_tower(lines):
+    tower = {}
+    for line in lines:
+        (prog, weight, holding) = parse(line)
+        tower[prog] = (weight, holding)
+    return tower
+
+
+SHOUT_RX = re.compile(r"(\w+)\s+\((\d+)\)(?:\s+->\s+(.+))?\s*\n?")
+
+
+def parse(line):
+    m = re.fullmatch(SHOUT_RX, line)
+    if not m:
+        raise ValueError("Bad input line: {}".format(line))
+    (name, weight, holding) = m.groups()
+    if holding is not None:
+        holding = re.split(r"\s*,\s*", holding)
+    return (name, int(weight), holding or [])
+
+
+def find_root(tower):
+    """
+    Every program in the tower lists its dependents.
+    Look at the list and determine which program wasn't listed
+    as dependent. That's the root.
+    """
+    deps = {
+        dep for (prog, (weight, holding)) in tower.items()
             for dep in holding
     }
-    for (prog, weight, holding) in processed:
-        if prog not in dependents:
+    for (prog, (weight, holding)) in tower.items():
+        if prog not in deps:
             return prog
 
 
 def part2(input_lines):
-    """"""
+    """
+    The programs explain the situation: they can't get down. Rather, they could get down,
+    if they weren't expending all of their energy trying to keep the tower balanced.
+    Apparently, one program has the wrong weight, and until it's fixed, they're stuck here.
+
+    For any program holding a disc, each program standing on that disc forms a sub-tower.
+    Each of those sub-towers are supposed to be the same weight, or the disc itself isn't
+    balanced. The weight of a tower is the sum of the weights of the programs in that tower.
+
+    In the example above, this means that for ugml's disc to be balanced, gyxo, ebii, and
+    jptl must all have the same weight, and they do: 61.
+
+    However, for tknk to be balanced, each of the programs standing on its disc and all
+    programs above it must each match. This means that the following sums must all be the
+    same:
+
+        - ugml + (gyxo + ebii + jptl) = 68 + (61 + 61 + 61) = 251
+        - padx + (pbga + havc + qoyq) = 45 + (66 + 66 + 66) = 243
+        - fwft + (ktlj + cntj + xhth) = 72 + (57 + 57 + 57) = 243
+    
+    As you can see, tknk's disc is unbalanced: ugml's stack is heavier than the other two.
+    Even though the nodes above ugml are balanced, ugml itself is too heavy: it needs to be
+    8 units lighter for its stack to weigh 243 and keep the towers balanced. If this change
+    were made, its weight would be 60.
+
+    Given that exactly one program is the wrong weight, what would its weight need to be to
+    balance the entire tower?
+    """
+
+
+    # Here are some facts:
+    # If there is one node standing on a disc, it cannot have the wrong weight. It is balanced by definition.
+    # For the same reason, the root program cannot have the wrong weight.
+    # If exactly two programs are standing on a disc, then they must both have the right height:
+    #   - otherwise which one is "wrong"? The problem stipulates exactly one wrong program.
+    #   - if either node is a leaf (not holding a disc) then we cannot decide which is wrong
+    #   - if both nodes are non-leaves, we can say they are both right and search higher on both branches for wrong weights
+    # If 3+ programs are standing on a disc, and one has a different weight from the others, it is wrong
+
+
     return "Unsolved"
