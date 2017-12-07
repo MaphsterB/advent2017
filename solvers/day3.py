@@ -3,6 +3,8 @@ Day 3 Solutions
 """
 
 
+import itertools as it
+
 import numpy as np
 
 
@@ -86,74 +88,82 @@ def part2(input_lines):
 
     What is the first value written that is larger than your puzzle input?
     """
-    class SpiralGrid:
-        """
-        It was easier for me to conceptualize this as a class, so I did.
-
-        This implements the spiral grid plus the debug storage method above.
-        It knows how to run one layer of the spiral at a time, and how to
-        reverse-search its data store for the right target value.
-        """
-        def __init__(self):
-            self.x = 0
-            self.y = 0
-            self.cell = 2
-            self.layer = 1
-            self.map = {(0,0): 1}
-            self.data = [1]
-        def store(self):
-            sum_ = 0
-            for dx in (-1, 0, 1):
-                for dy in (-1, 0, 1):
-                    neighbor = (self.x + dx, self.y + dy)
-                    if neighbor in self.map:
-                        nval = self.data[self.map[neighbor] - 1]
-                        sum_ += nval
-            self.map[(self.x, self.y)] = self.cell
-            self.data.append(sum_)
-            self.cell += 1
-        def up(self):
-            self.y += 1
-            self.store()
-        def down(self):
-            self.y -= 1
-            self.store()
-        def left(self):
-            self.x -= 1
-            self.store()
-        def right(self):
-            self.x += 1
-            self.store()
-        def fill_layer(self):
-            side_len = (2 * self.layer)
-            # Right to start
-            self.right()
-            # Up to the corner
-            for _ in range(side_len - 1):
-                self.up()
-            # Left, then down, then right
-            for _ in range(side_len):
-                self.left()
-            for _ in range(side_len):
-                self.down()
-            for _ in range(side_len):
-                self.right()
-            # Increment working layer
-            self.layer += 1
-        def get_cell_number(self, x, y):
-            while self.layer <= max(abs(x), abs(y)):
-                self.fill_layer()
-            return self.map[(x, y)]
-        def locate_target_sum(self, target):
-            # We just do this one layer at a time,
-            # then scan backwards once we're in the right layer.
-            while self.data[-1] <= target:
-                self.fill_layer()
-            i = -1
-            while self.data[i] > target:
-                i -= 1
-            return self.data[i + 1]
-
     target = int(input_lines[0])
     g = SpiralGrid()
     return g.locate_target_sum(target)
+
+
+class SpiralGrid:
+    """
+    It was easier for me to conceptualize this as a class, so I did.
+
+    This implements the spiral grid plus the debug storage method above.
+    It knows how to run one layer of the spiral at a time, and how to
+    reverse-search its data store for the right target value.
+    """
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        self.cell = 2
+        self.layer = 1
+        self.map = {(0,0): 1}
+        self.data = [1]
+
+    def store(self):
+        sum_ = 0
+        for (dx, dy) in it.product((-1, 0, 1), repeats=2):
+                neighbor = (self.x + dx, self.y + dy)
+                if neighbor in self.map:
+                    nval = self.data[self.map[neighbor] - 1]
+                    sum_ += nval
+        self.map[(self.x, self.y)] = self.cell
+        self.data.append(sum_)
+        self.cell += 1
+
+    def up(self):
+        self.y += 1
+        self.store()
+
+    def down(self):
+        self.y -= 1
+        self.store()
+
+    def left(self):
+        self.x -= 1
+        self.store()
+
+    def right(self):
+        self.x += 1
+        self.store()
+
+    def fill_layer(self):
+        side_len = (2 * self.layer)
+        # Right to start
+        self.right()
+        # Up to the corner
+        for _ in range(side_len - 1):
+            self.up()
+        # Left, then down, then right
+        for _ in range(side_len):
+            self.left()
+        for _ in range(side_len):
+            self.down()
+        for _ in range(side_len):
+            self.right()
+        # Increment working layer
+        self.layer += 1
+
+    def get_cell_number(self, x, y):
+        while self.layer <= max(abs(x), abs(y)):
+            self.fill_layer()
+        return self.map[(x, y)]
+
+    def locate_target_sum(self, target):
+        # We just do this one layer at a time,
+        # then scan backwards once we're in the right layer.
+        while self.data[-1] <= target:
+            self.fill_layer()
+        i = -1
+        while self.data[i] > target:
+            i -= 1
+        return self.data[i + 1]

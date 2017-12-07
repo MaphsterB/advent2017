@@ -17,17 +17,9 @@ advent.py - Solve puzzles for Advent of Code 2017.
 """
 
 
-import functools as ft
-import itertools as it
-import re
 import sys
 
-import numpy as np
-
 from solvers import *
-
-
-ADVENT_DAYS = 25
 
 
 def log(*args, **kwargs):
