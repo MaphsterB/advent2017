@@ -5,6 +5,7 @@ Solutions for Day 7
 
 import functools as ft
 import re
+from statistics import mode, StatisticsError
 
 
 def part1(input_lines):
@@ -105,6 +106,8 @@ def find_root(tower):
     Look at the list and determine which program wasn't listed
     as dependent. That's the root.
     """
+    # Sublime's syntax highlighter complains about one of these parens.
+    # I've no idea why...
     deps = {
         dep for (prog, (weight, holding)) in tower.items()
             for dep in holding
@@ -143,7 +146,7 @@ def part2(input_lines):
     Given that exactly one program is the wrong weight, what would its weight need to be to
     balance the entire tower?
     """
-
+    tower = get_tower(input_lines)
 
     # Here are some facts:
     # If there is one node standing on a disc, it cannot have the wrong weight. It is balanced by definition.
@@ -154,5 +157,65 @@ def part2(input_lines):
     #   - if both nodes are non-leaves, we can say they are both right and search higher on both branches for wrong weights
     # If 3+ programs are standing on a disc, and one has a different weight from the others, it is wrong
 
+    # There's actually 2 recursive things going on here.
+    #   1) Finding the total weight of a node. This is easy-mode recursion, and we can LRU cache it for speedup.
+    #   2) Finding the incorrect weight. This uses the facts outlined above:
+    #       Base case: node w/ 2 children, one of whom is a leaf: Error (ill-defined problem; cannot determine incorrect node)
+    #       Base case: node w/ 3+ children, one with unequal weight: return delta between its weight and the others'
+    #           * If that correction results in a weight of 0 or less, it's not a base case! We'll assume weights must be positive.
+    #       Base case: leaf node: return None/False (it's balanced; no further work to do)
+    #       Recursion: return the non-False value of find_weight_correction() among children; False if all results are False.
 
-    return "Unsolved"
+    @ft.lru_cache(maxsize=512)
+    def node_weight(prog):
+        (p_weight, holding) = tower[prog]
+        held_weight = sum(node_weight(p) for p in holding)
+        return p_weight + held_weight
+
+    def is_leaf(prog):
+        return not tower[prog][1]
+
+    def find_weight_correction(prog):
+        print("check", prog, "...")
+        (p_weight, holding) = tower[prog]
+        # Leaf?
+        if not holding:
+            print("leaf: balanced")
+            return False
+        # Find majority. StatsError = no mode = 2 children, or more than 1 incorrect weight.
+        held_weights = [node_weight(p) for p in holding]
+        try:
+            majority_weight = mode(held_weights)
+        except StatisticsError as e:
+            raise AssertionError(
+                "Bad problem definition - no majority weight found for node {}'s disc"
+                .format(prog)) from e
+        # Is there an inconsistent weight?
+        bad_idx = None
+        for (i, weight) in enumerate(held_weights):
+            if weight != majority_weight:
+                bad_idx = i
+                break
+        print("weights:", held_weights, "bad one?", bad_idx)
+        # Found a bad weight?
+        if bad_idx is not None:
+            bad_child = holding[bad_idx]
+            delta = majority_weight - held_weights[bad_idx]
+            new_weight = tower[bad_child][0] + delta
+            # Weights cannot be reduced to 0 or less (we assume - the problem did not state such)
+            if new_weight > 0:
+                return new_weight
+            # Recurse: Search child
+            return find_weight_correction(child)
+        # Recurse: Search ALL children
+        for child in holding:
+            correct_weight = find_weight_correction(child)
+            if correct_weight is not False:
+                return correct_weight
+        # Nothing wrong in this sub-tree...
+        return False
+
+    correct_weight = find_weight_correction(find_root(tower))
+    if correct_weight is False:
+        raise AssertionError("No correct weight found! Bad input, or time to debug...")
+    return correct_weight
