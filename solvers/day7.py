@@ -148,74 +148,75 @@ def part2(input_lines):
     """
     tower = get_tower(input_lines)
 
-    # Here are some facts:
-    # If there is one node standing on a disc, it cannot have the wrong weight. It is balanced by definition.
-    # For the same reason, the root program cannot have the wrong weight.
-    # If exactly two programs are standing on a disc, then they must both have the right height:
-    #   - otherwise which one is "wrong"? The problem stipulates exactly one wrong program.
-    #   - if either node is a leaf (not holding a disc) then we cannot decide which is wrong
-    #   - if both nodes are non-leaves, we can say they are both right and search higher on both branches for wrong weights
-    # If 3+ programs are standing on a disc, and one has a different weight from the others, it is wrong
-
     # There's actually 2 recursive things going on here.
     #   1) Finding the total weight of a node. This is easy-mode recursion, and we can LRU cache it for speedup.
-    #   2) Finding the incorrect weight. This uses the facts outlined above:
-    #       Base case: node w/ 2 children, one of whom is a leaf: Error (ill-defined problem; cannot determine incorrect node)
-    #       Base case: node w/ 3+ children, one with unequal weight: return delta between its weight and the others'
-    #           * If that correction results in a weight of 0 or less, it's not a base case! We'll assume weights must be positive.
-    #       Base case: leaf node: return None/False (it's balanced; no further work to do)
-    #       Recursion: return the non-False value of find_weight_correction() among children; False if all results are False.
+    #   2) Finding the correct weight of the bad node.
+    #       Base case: Reach a leaf. Return None to terminate the path.
+    #       Base case: 2 children; different weights; both leaves - ERROR. Which one is the correct weight??
+    #       Base case: If weights don't match, and one node is a leaf - fix it!
+    #       Base case: If weights don't match, but all children are balanced, then this node isn't - fix it!
+    #       Recursive case: If all weights match, continue to check all non-leaves.
+    #       Recursive case: If weights don't match, continue to check the "wrong" branch. If 2 branches, check both.
+    #       Only one path will return a non-None value - that's the corrected weight (if all paths return None, the tower is balanced)
 
     @ft.lru_cache(maxsize=512)
     def node_weight(prog):
-        (p_weight, holding) = tower[prog]
-        held_weight = sum(node_weight(p) for p in holding)
-        return p_weight + held_weight
+        (p_weight, children) = tower[prog]
+        disc_weight = sum(node_weight(p) for p in children)
+        return p_weight + disc_weight
 
     def is_leaf(prog):
         return not tower[prog][1]
 
     def find_weight_correction(prog):
-        print("check", prog, "...")
-        (p_weight, holding) = tower[prog]
-        # Leaf?
-        if not holding:
-            print("leaf: balanced")
-            return False
-        # Find majority. StatsError = no mode = 2 children, or more than 1 incorrect weight.
-        held_weights = [node_weight(p) for p in holding]
+        # Base case: leaf
+        if is_leaf(prog): return None
+        (p_weight, children) = tower[prog]
+        child_weights = [node_weight(p) for p in children]
+        # 2-child cases
+        # TODO we could compact this into the other cases by being clever...
+        if len(children) == 2:
+            leaf0 = is_leaf(children[0])
+            leaf1 = is_leaf(children[1])
+            if child_weights[0] != child_weights[1]:
+                if leaf0 and leaf1:
+                    raise AssertionError("2 leaf children with different weights. "
+                        "Cannot determine correct weight!")
+                elif leaf0: return child_weights[1]
+                elif leaf1: return child_weights[0]
+            return find_weight_correction(children[0]) or find_weight_correction(children[1])
+            # There may be a case here like below, where weights don't match but both
+            # children are balanced. That would be an AsssertionError.
+        # >2-child cases
         try:
-            majority_weight = mode(held_weights)
+            majority = mode(child_weights)
         except StatisticsError as e:
-            raise AssertionError(
-                "Bad problem definition - no majority weight found for node {}'s disc"
-                .format(prog)) from e
-        # Is there an inconsistent weight?
+            raise AssertionError("No majority weight: multiple imbalances detected!") from e
         bad_idx = None
-        for (i, weight) in enumerate(held_weights):
-            if weight != majority_weight:
+        for (i, w) in enumerate(child_weights):
+            if w != majority:
                 bad_idx = i
                 break
-        print("weights:", held_weights, "bad one?", bad_idx)
-        # Found a bad weight?
         if bad_idx is not None:
-            bad_child = holding[bad_idx]
-            delta = majority_weight - held_weights[bad_idx]
-            new_weight = tower[bad_child][0] + delta
-            # Weights cannot be reduced to 0 or less (we assume - the problem did not state such)
-            if new_weight > 0:
-                return new_weight
-            # Recurse: Search child
-            return find_weight_correction(child)
-        # Recurse: Search ALL children
-        for child in holding:
-            correct_weight = find_weight_correction(child)
-            if correct_weight is not False:
-                return correct_weight
-        # Nothing wrong in this sub-tree...
-        return False
+            print("bad index", bad_idx)
+            if is_leaf(children[bad_idx]):
+                return majority
+            result = find_weight_correction(children[bad_idx])
+            # If this is an imbalanced index, and its children are balanced, then *this* must be the bad node!
+            if result is None:
+                delta = majority - child_weights[bad_idx]
+                return tower[children[bad_idx]][0] + delta
+            return result
+        for child in children:
+            result = find_weight_correction(child)
+            if result is not None:
+                return result
+        return None
+
 
     correct_weight = find_weight_correction(find_root(tower))
-    if correct_weight is False:
+    if correct_weight is None:
         raise AssertionError("No correct weight found! Bad input, or time to debug...")
+    if correct_weight <= 0:
+        raise AssertionError("Corrected weight was zero or negative! Bad input, or time to debug...")
     return correct_weight
