@@ -124,21 +124,24 @@ hexadecimal representation is always 32 hexadecimal digits (0-f) long.
 
 Here are some example hashes:
 
-    The empty string becomes a2582a3a0e66e6e86e3812dcb672a272.
-    AoC 2017 becomes 33efeb34ea91902bb2f59c9920caa6cd.
-    1,2,3 becomes 3efbe78a8d82f29979031a4aa0b16a9d.
-    1,2,4 becomes 63960835bcdc130f0b66d7ff4f6a5a8e.
+    - The empty string becomes a2582a3a0e66e6e86e3812dcb672a272.
+    - AoC 2017 becomes 33efeb34ea91902bb2f59c9920caa6cd.
+    - 1,2,3 becomes 3efbe78a8d82f29979031a4aa0b16a9d.
+    - 1,2,4 becomes 63960835bcdc130f0b66d7ff4f6a5a8e.
 """
 
 
 import re
 
+import numpy as np
 
-def hash_round(lengths, cur_pos=0, skip_size=0, modulus=256):
+
+def hash_round(lengths, array=None, cur_pos=0, skip_size=0, modulus=256):
     """
     One round of Knot Hash.
     """
-    array = list(range(modulus))
+    if array is None:
+        array = list(range(modulus))
     for L in lengths:
         si = cur_pos
         ei = (cur_pos + L) % modulus
@@ -169,7 +172,16 @@ def part2(input_lines):
     Knot Hash of your puzzle input? Ignore any leading or trailing
     whitespace you might encounter.
     """
-    lengths = [ord(c) for c in "".join(input_lines)]
+    lengths = [ord(c) for c in "".join(input_lines).strip()]
     # As specified in the puzzle text...
     lengths += [17, 31, 73, 47, 23]
-    return "Unsolved"
+    array = None
+    cur_pos = 0
+    skip_size = 0
+    for _ in range(64):
+        (array, cur_pos, skip_size) = hash_round(lengths, array, cur_pos, skip_size)
+    # Densify...
+    sparse_hash = np.array(array, dtype=np.int32).reshape((16,16))
+    dense_hash = np.bitwise_xor.reduce(sparse_hash, axis=1)
+    hex_strs = ["{:02x}".format(x) for x in dense_hash]
+    return "".join(hex_strs)
