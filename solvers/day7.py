@@ -198,7 +198,6 @@ def part2(input_lines):
                 bad_idx = i
                 break
         if bad_idx is not None:
-            print("bad index", bad_idx)
             if is_leaf(children[bad_idx]):
                 return majority
             result = find_weight_correction(children[bad_idx])
