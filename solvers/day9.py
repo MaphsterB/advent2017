@@ -20,9 +20,13 @@ def parse_groups(text):
     """
     This does the 'normal' scanning for groups. It defers to
     parse_garbage() to skip over garbage.
+
+    Returns a 3-tuple: the brace counter (should be zero for correct input),
+    the scores array (for part 1) and the garbage scores array (for part 2).
     """
     counter = 1
     scores = []
+    garbage_scores = []
     i = 1
     while i < len(text):
         # Inside a group. First, check if we have an inner group or garbage.
@@ -33,7 +37,8 @@ def parse_groups(text):
             continue
         # Handle garbage - skip it.
         if text[i] == "<":
-            i = parse_garbage(text, i)
+            (i, gscore) = parse_garbage(text, i+1)
+            garbage_scores.append(gscore)
             continue
         # If we get here, we need to scan. Stop scanning at , or }
         m = re.match(r"[^,}]*[,}]", text[i:])
@@ -49,21 +54,44 @@ def parse_groups(text):
             # Special case - skip over commas after }'s - saves us one loop.
             if i < len(text) and text[i] == ",":
                 i += 1
-    return (counter, scores)
+    return (counter, scores, garbage_scores)
 
 
 def parse_garbage(text, i):
     """
     Scans garbage, returning the text position after the end of the garbage.
+    Now also returns the garbage's "score" - the # of characters, not counting
+    the opening/closing <> and any !'s or characters they cancel.
+
+    The i parameter is the text position *after* the opening <
     """
+    score = 0
+    # Loop 'til the closing > is found.
     while True:
         m = re.match(r"[^!>]*[!>]", text[i:])
         if not m:
             raise ValueError("Bad syntax (after position {}) in garbage: Expecting >".format(i))
-        i += m.end(0) - m.start(0)
+        delta = m.end(0) - m.start(0)
+        i += delta
+        score += delta
         if text[i-1] == ">":
-            return i
+            return (i, score - 1)
+        # If we get here, we hit a ! - skip it and the char following.
         i += 1
+        score -= 1
+
+
+def parse_input(input_lines):
+    """
+    Wrapper for part1/part2 common code.
+    """
+    text = "".join(input_lines).replace("\n", "")
+    if text[0] != "{":
+        raise ValueError("Bad syntax - must begin with a {{ group")
+    (counter, scores, garbage_scores) = parse_groups(text)
+    if counter > 0:
+        raise ValueError("Bad syntax - EOF reached with {} unclosed groups".format(counter))
+    return (scores, garbage_scores)
 
 
 def part1(input_lines):
@@ -129,16 +157,27 @@ def part1(input_lines):
 
     What is the total score for all groups in your input?
     """
-    text = "".join(input_lines).replace("\n", "")
-    if text[0] != "{":
-        raise ValueError("Bad syntax - must begin with a {{ group")
-    (counter, scores) = parse_groups(text)
-    if counter > 0:
-        raise ValueError("Bad syntax - EOF reached with {} unclosed groups".format(counter))
+    (scores, _) = parse_input(input_lines)
     return sum(scores)
 
 
 def part2(input_lines):
     """
+    Now, you're ready to remove the garbage.
+
+    To prove you've removed it, you need to count all of the characters within
+    the garbage. The leading and trailing < and > don't count, nor do any
+    canceled characters or the ! doing the canceling.
+
+        - <>, 0 characters.
+        - <random characters>, 17 characters.
+        - <<<<>, 3 characters.
+        - <{!>}>, 2 characters.
+        - <!!>, 0 characters.
+        - <!!!>>, 0 characters.
+        - <{o"i!a,<{i<a>, 10 characters.
+    
+    How many non-canceled characters are within the garbage in your puzzle input?
     """
-    return "Unsolved"
+    (_, garbage_scores) = parse_input(input_lines)
+    return sum(garbage_scores)
