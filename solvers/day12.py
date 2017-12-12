@@ -78,20 +78,51 @@ class PipeGraph:
                 to_visit = to_visit | self.edge_table[cur_node]
         return visited
 
+    def find_partitions(self):
+        """
+        Find the number of partitions in the graph. Each
+        partition is a set of nodes, whose members are connected
+        to each other but to no other group in the graph.
+
+        Return value is a list of sets of nodes.
+        """
+        checklist = set(self.edge_table.keys())
+        partitions = []
+        while len(checklist) > 0:
+            start_node = checklist.pop()
+            found = False
+            for partition in partitions:
+                if start_node in partition:
+                    found = True
+                    break
+            if found: continue
+            partitions.append(self.find_all_connections(start_node))
+        return partitions
+
+
+def parse_graph(lines):
+    """
+    Input parsing convenience function.
+    """
+    graph = PipeGraph()
+    for line in lines:
+        (node, edgestr) = re.split(r"\s*<->\s*", line)
+        edges = [int(e) for e in re.split(r"\s*,\s*", edgestr)]
+        graph.add_node(int(node), edges)
+    return graph
+
 
 def part1(input_lines):
     """
     Straightforward Dijkstra.
     """
-    graph = PipeGraph()
-    for line in input_lines:
-        (node, edgestr) = re.split(r"\s*<->\s*", line)
-        edges = [int(e) for e in re.split(r"\s*,\s*", edgestr)]
-        graph.add_node(int(node), edges)
+    graph = parse_graph(input_lines)
     return len(graph.find_all_connections(0))
 
 
 def part2(input_lines):
     """
+    Now we need to find all partitions. New method added to PipeGraph.
     """
-    return "Unsolved"
+    graph = parse_graph(input_lines)
+    return len(graph.find_partitions())
