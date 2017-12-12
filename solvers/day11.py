@@ -56,25 +56,35 @@ OFFSETS = {
 }
 
 
-def part1(input_lines):
-    steps = re.split(r"\s*,\s*", "".join(input_lines).lower())
-    coords = np.zeros(2, dtype=float)
+def walk(steps, start=None):
+    """
+    Walk a path specified in hex steps.
+    """
+    coords = np.zeros(2, dtype=float) if start is None else start
     for step in steps:
         coords = coords + OFFSETS[step]
-    
-    # Now we need to find a linear combination of the direction
-    # vectors that gets us to those coordinates. The combination
-    # with the smallest count is our shortest path.
-    # Doing that directly, our equation in matrix-land looks like:
-    # [ 0  1    1    0 -1   -1  ] [ a ]   [ x ]
-    # [ 1  0.5 -0.5 -1 -0.5  0.5] [ b ] = [ y ], solve for a-f given (x,y)
-    #                             [ c ]
-    #                             [ d ]
-    #                             [ e ]
-    #                             [ f ]
-    # Unfortunately this equation is not solvable directly (the matrix is nonsingular)
-    # That's okay, because for any given case, we don't need all 6 direction vectors.
+    return coords
 
+
+def walk_with_max(steps, start=None):
+    """
+    Walk a specified path, determining where we end, and also
+    the farthest distance from the origin we reach during the
+    path.
+    """
+    coords = np.zeros(2, dtype=float) if start is None else start
+    max_dist = 0
+    for step in steps:
+        print("step")
+        coords = coords + OFFSETS[step]
+        max_dist = max(max_dist, get_distance(coords))
+    return coords, max_dist
+
+
+def get_distance(coords):
+    """
+    Get shortest distance in hex steps from origin to coords.
+    """
     # Special case: Did we end up where we started?
     if coords[0] == 0 and coords[1] == 0:
         return 0
@@ -97,9 +107,24 @@ def part1(input_lines):
         else:
             coords = coords + northish
     if int(coords[1]) != coords[1]:
-        raise AssertionError("Incorrect E/W walking algorithm - ended with Y-coord {}".format(coords[1]))
+        raise AssertionError("Incorrect E/W walking algorithm - "
+            "ended with Y-coord {}".format(coords[1]))
     return int(steps + abs(coords[1]))
 
 
+def part1(input_lines):
+    """
+    Walk the specified path, then figure out how far away it was.
+    """
+    steps = re.split(r"\s*,\s*", "".join(input_lines).lower())
+    coords = walk(steps)
+    return get_distance(coords)
+
+
 def part2(input_lines):
-    return "Unsolved"
+    """
+    Use the updated walk_with_max().
+    """
+    steps = re.split(r"\s*,\s*", "".join(input_lines).lower())
+    (_, max_dist) = walk_with_max(steps)
+    return max_dist
