@@ -315,6 +315,9 @@ class Firewall:
 
     Scanning layers of the firewall are represented
     as simple data objects by the inner class Firewall.Layer.
+
+    This could be made considerably faster by using a better
+    underlying data structure... bitmasks, mayhap?
     """
 
     LAYER_RX = re.compile(r"(\d+)\s*:\s*(\d+)\s*")
@@ -359,23 +362,52 @@ class Firewall:
             elif layer.dir == -1 and layer.pos == 0:
                 layer.dir = 1
 
-    def send_packet(self, delay=0):
+    def send_packet(self, delay=0, start_time=0, debug=0):
         """
         Send a packet through the firewall, optionally after a delay.
         Returns list of layers where the packet was caught
         by scanners, and the severity as described by the puzzle.
+
+        Debug level determines verbosity:
+            0 = none
+            1 = print short debug before each scan step
+            2 = print long debug before each scan step
+            3 = print short debug before + after each scan step
+            4 = print long debug before + after each scan step
         """
+        picosecond = start_time + delay
         for _ in range(delay):
             self.step_scanners()
         total_sev = 0
         caught_on = []
         for i in range(self.num_layers):
             cur_layer = self.layers.get(i)
+            if debug >= 1: print(self.pstr(i, picosecond))
             if cur_layer and cur_layer.pos == 0:
                 total_sev += i * cur_layer.range
                 caught_on.append(i)
             self.step_scanners()
+            if debug >= 2: print(self.pstr(cur_layer=i))
+            picosecond += 1
         return (caught_on, total_sev)
+
+    def is_caught(self, delay=0, start_time=0, debug=0):
+        """
+        send_packet() with early-drop-out criteria. Instead of returning
+        severity, this just checks whether we get caught at all.
+        """
+        picosecond = start_time + delay
+        for _ in range(delay):
+            self.step_scanners()
+        for i in range(self.num_layers):
+            cur_layer = self.layers.get(i)
+            if debug >= 1: print(self.pstr(i, picosecond))
+            if cur_layer and cur_layer.pos == 0:
+                return True
+            self.step_scanners()
+            if debug >= 2: print(self.pstr(i))
+            picosecond += 1
+        return False
 
     def __str__(self):
         """String representation, for debugging."""
@@ -384,6 +416,49 @@ class Firewall:
             for L in range(self.num_layers)
         ])
 
+    def pstr(self, cur_layer=-1, time=None):
+        """Prettier debug printout"""
+        w = max(3, len(str(self.num_layers)))
+        n_lines = max(L.range for L in self.layers.values())
+        header = []
+        if time:
+            header.append("Picosecond {}:".format(time))
+        header.append(" ".join([
+            "{: ^{w}}".format(i, w=w) for i in range(self.num_layers)
+        ]))
+        lines = []
+        for line in range(n_lines):
+            parts = []
+            for layer_idx in range(self.num_layers):
+                # We could definitely clean this logic up a lot...
+                if line == 0: # First line has the ... and (.) cases.
+                    if layer_idx == cur_layer:
+                        # Parens
+                        if layer_idx in self.layers:
+                            if self.layers[layer_idx].pos == line:
+                                p = "(S)"
+                            else:
+                                p = "( )"
+                        else:
+                            p = "(.)"
+                    elif layer_idx in self.layers:
+                        if self.layers[layer_idx].pos == line:
+                            p = "[S]"
+                        else:
+                            p = "[ ]"
+                    else:
+                        p = "..."
+                else: # Not the first line has the "   " case; no parens.
+                    if layer_idx in self.layers and line < self.layers[layer_idx].range:
+                        if self.layers[layer_idx].pos == line:
+                            p = "[S]"
+                        else:
+                            p = "[ ]"
+                    else:
+                        p = "   "
+                parts.append("{: ^{w}}".format(p, w=w))
+            lines.append(" ".join(parts))
+        return "\n".join(header + lines + [""])
 
 def part1(input_lines):
     """
@@ -391,13 +466,24 @@ def part1(input_lines):
     (no delay between layers).
     """
     firewall = Firewall.parse_layers(input_lines)
-    (_, total_sev) = firewall.simulate_run()
+    (_, total_sev) = firewall.send_packet()
     return total_sev
 
 
-def part2(input_lines):
+def part2(input_lines, debug=0, limit=10000):
     """
     Now we must delay by the minimal amount that doesn't get us
     caught. Brute forcing it sounds easy =)
     """
-    return "Unsolved"
+    # (We know delay 0 gets us caught =)
+    delay = 1
+    for _ in range(limit):
+        print(delay)
+        firewall = Firewall.parse_layers(input_lines)
+        if debug:
+            print("----- DELAY {} -----".format(delay))
+        caught = firewall.is_caught(delay, debug=debug)
+        if not caught:
+            return delay
+        delay += 1
+    return "Limit reached!"
