@@ -341,9 +341,30 @@ class Firewall:
             self.dir = 1
             self.pos = 0
 
-    def __init__(self):
-        self.layers = {}
-        self.num_layers = 0
+        def copy(self):
+            c = Firewall.Layer(self.depth, self.range)
+            c.dir = self.dir
+            c.pos = self.pos
+            return c
+
+    def __init__(self, layers=None):
+        self.layers = layers or {}
+        if len(self.layers) == 0:
+            self.num_layers = 0
+        else:
+            self.num_layers = max(k for k in self.layers.keys()) + 1
+
+    def copy(self):
+        """Return a new deep copy of the Firewall."""
+        return Firewall(layers={
+            k: v.copy() for (k, v) in self.layers.items()
+        })
+
+    def reset(self):
+        """Reset all scanners."""
+        for L in self.layers.values():
+            L.pos = 0
+            L.dir = 1
 
     def add_layer(self, layer, range_):
         self.layers[layer] = self.Layer(layer, range_)
@@ -361,6 +382,27 @@ class Firewall:
                 layer.dir = -1
             elif layer.dir == -1 and layer.pos == 0:
                 layer.dir = 1
+
+    def detect_cycle(self, limit=100000):
+        """
+        Speedup technique for long delays. Stepping the scanners
+        each time is silly, if they're going to eventually cycle
+        around again to the same spot. Find that spot and we can
+        skip to it!
+
+        Returns the cycle length.
+
+        Update: Well that didn't work. Our puzzle input doesn't
+        have short cycles >_<
+        """
+        delay = 1
+        self.step_scanners()
+        while any(L.pos for L in self.layers.values()) and delay < limit:
+            print(delay)
+            self.step_scanners()
+            delay += 1
+        self.reset()
+        return delay if delay < limit else None
 
     def send_packet(self, delay=0, start_time=0, debug=0):
         """
@@ -470,20 +512,22 @@ def part1(input_lines):
     return total_sev
 
 
-def part2(input_lines, debug=0, limit=10000):
+def part2(input_lines, debug=0, limit=int(1e7)):
     """
     Now we must delay by the minimal amount that doesn't get us
     caught. Brute forcing it sounds easy =)
     """
+    firewall = Firewall.parse_layers(input_lines)
     # (We know delay 0 gets us caught =)
+    firewall.step_scanners()
     delay = 1
     for _ in range(limit):
-        print(delay)
-        firewall = Firewall.parse_layers(input_lines)
-        if debug:
-            print("----- DELAY {} -----".format(delay))
-        caught = firewall.is_caught(delay, debug=debug)
+        # Eventually this gets faster than simulating the delay.
+        checkpoint = firewall.copy()
+        caught = firewall.is_caught(debug=debug)
         if not caught:
             return delay
+        firewall = checkpoint
+        firewall.step_scanners()
         delay += 1
     return "Limit reached!"
