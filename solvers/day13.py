@@ -502,6 +502,7 @@ class Firewall:
             lines.append(" ".join(parts))
         return "\n".join(header + lines + [""])
 
+
 def part1(input_lines):
     """
     Just run a simulation of the passage, starting immediately

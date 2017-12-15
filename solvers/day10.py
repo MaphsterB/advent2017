@@ -156,6 +156,20 @@ def hash_round(lengths, array=None, cur_pos=0, skip_size=0, modulus=256):
     return (array, cur_pos, skip_size)
 
 
+def knot_hash(lengths, num_rounds=64):
+    # It's what's in the spec...
+    lengths += [17, 31, 73, 47, 23]
+    array = None
+    cur_pos = 0
+    skip_size = 0
+    for _ in range(64):
+        (array, cur_pos, skip_size) = hash_round(lengths, array, cur_pos, skip_size)
+    sparse_hash = np.array(array, dtype=np.int32).reshape((16,16))
+    dense_hash = np.bitwise_xor.reduce(sparse_hash, axis=1)
+    hex_strs = ["{:02x}".format(x) for x in dense_hash]
+    return "".join(hex_strs)
+
+
 def part1(input_lines):
     """
     Once this process is complete, what is the result of multiplying the first
@@ -173,15 +187,4 @@ def part2(input_lines):
     whitespace you might encounter.
     """
     lengths = [ord(c) for c in "".join(input_lines).strip()]
-    # As specified in the puzzle text...
-    lengths += [17, 31, 73, 47, 23]
-    array = None
-    cur_pos = 0
-    skip_size = 0
-    for _ in range(64):
-        (array, cur_pos, skip_size) = hash_round(lengths, array, cur_pos, skip_size)
-    # Densify...
-    sparse_hash = np.array(array, dtype=np.int32).reshape((16,16))
-    dense_hash = np.bitwise_xor.reduce(sparse_hash, axis=1)
-    hex_strs = ["{:02x}".format(x) for x in dense_hash]
-    return "".join(hex_strs)
+    return knot_hash(lengths)
