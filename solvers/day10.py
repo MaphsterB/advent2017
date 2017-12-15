@@ -156,8 +156,9 @@ def hash_round(lengths, array=None, cur_pos=0, skip_size=0, modulus=256):
     return (array, cur_pos, skip_size)
 
 
-def knot_hash(lengths, num_rounds=64):
+def knot_hash(input_text, num_rounds=64):
     # It's what's in the spec...
+    lengths = [ord(c) for c in input_text]
     lengths += [17, 31, 73, 47, 23]
     array = None
     cur_pos = 0
@@ -186,5 +187,4 @@ def part2(input_lines):
     Knot Hash of your puzzle input? Ignore any leading or trailing
     whitespace you might encounter.
     """
-    lengths = [ord(c) for c in "".join(input_lines).strip()]
-    return knot_hash(lengths)
+    return knot_hash("".join(L.strip() for L in input_lines))
