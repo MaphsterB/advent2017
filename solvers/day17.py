@@ -54,6 +54,23 @@ value written (2017), you can short-circuit the spinlock. In this example, that
 would be 638.
 
 What is the value after 2017 in your completed circular buffer?
+
+--- Part Two ---
+
+The spinlock does not short-circuit. Instead, it gets more angry. At least, you
+assume that's what happened; it's spinning significantly faster than it was a
+moment ago.
+
+You have good news and bad news.
+
+The good news is that you have improved calculations for how to stop
+thespinlock. They indicate that you actually need to identify the value after 0
+in the current state of the circular buffer.
+
+The bad news is that while you were determining this, the spinlock has just
+finished inserting its fifty millionth value (50000000).
+
+What is the value after 0 the moment 50000000 is inserted?
 """
 
 
@@ -67,6 +84,20 @@ def part1(input_lines):
         buf.insert(pos, i + 1)
     return buf[(buf.index(2017) + 1) % len(buf)]
 
-def part2(input_lines):
-    return "Unsolved"
 
+def part2(input_lines):
+    """
+    Okay. Can't store the buffer any more. 50,000,000 iterations time.
+    
+    Thankfully, we don't need to. What we need to do is keep track of
+    the current position, and of the thing in position 1 (the thing after)
+    zero.
+    """
+    step_size = int(input_lines[0])
+    pos = 0
+    val = 0
+    for i in range(50000000):
+        pos = (pos + step_size) % (i + 1) + 1
+        if pos == 1:
+            val = i + 1
+    return val
