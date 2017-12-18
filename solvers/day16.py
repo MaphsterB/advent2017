@@ -157,9 +157,9 @@ def part2(input_lines):
     # Now the *actual* number of times we need to run the dance is the remainder,
     # after dividing 1,000,000,000 by the cycle length.
     dances_remaining = 1000000000 % cycle_length
-    print("Sub-cycles: SX - {}, P - {}".format(sx_cycle, p_cycle))
-    print("Total cycle length:", cycle_length)
-    print("Dances needed:", dances_remaining)
+    # print("Sub-cycles: SX - {}, P - {}".format(sx_cycle, p_cycle))
+    # print("Total cycle length:", cycle_length)
+    # print("Dances needed:", dances_remaining)
     moves = sx_moves + p_moves
     for _ in range(dances_remaining):
         progs = fastdance(progs, moves)
