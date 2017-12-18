@@ -49,7 +49,8 @@ Given your actual key string, how many squares are used?
 """
 
 
-import binascii
+from collections import deque
+import itertools as it
 
 from solvers.day10 import knot_hash
 
@@ -66,4 +67,38 @@ def part1(input_lines):
 
 
 def part2(input_lines):
-    return "Unsolved"
+    key = input_lines[0].strip()
+    bingrid = []
+    to_visit = deque()
+    for i in range(128):
+        rowkey = "{}-{}".format(key, i)
+        khash = knot_hash(rowkey)
+        binstr = "{:0>128}".format(bin(int(khash, base=16))[2:])
+        bingrid.append(binstr)
+    # This is going to be a hash with 128*128 entries (at most)
+    # (rc-coords) -> (partition_number)
+    # We can use a similar solution to the graph partitioning algo from
+    # before; we're just operating over a slightly different space.
+    region_map = {}
+    latest_region = 1
+    for (r, c) in it.product(range(128), repeat=2):
+        if bingrid[r][c] != "1": continue
+        if (r, c) in region_map: continue
+        neighbors = deque([(r, c)])
+        while neighbors:
+            cell = neighbors.popleft()
+            (cr, cc) = cell
+            region_map[cell] = latest_region
+            neighbor_coords = [
+                (cr + dr, cc + dc) for (dr, dc) in ((-1, 0), (1, 0), (0, -1), (0, 1))
+            ]
+            nn = [
+                (nr, nc) for (nr, nc) in neighbor_coords
+                if 0 <= nr < 128 and 0 <= nc < 128
+                    and (nr, nc) not in region_map
+                    and bingrid[nr][nc] == "1"
+            ]
+            neighbors += nn
+        latest_region += 1
+    
+    return latest_region - 1
