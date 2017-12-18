@@ -122,40 +122,56 @@ eventually find a total of 309 pairs that match in their lowest 16 bits.)
 
 After 5 million pairs, but using this new generator logic, what is the judge's
 final count?
-
 """
 
 
 import re
 
 
-class DuelingGens:
-    """
-    Class representing a pair of generators creating values
-    in a finite space determined by a modulus.
-    """
 
-    MODULUS = 2147483647
-    MOD_MASK = 0x7fffffff
-    JUDGE_MASK = 0xffff
+MODULUS = 2147483647
+MOD_MASK = 0x7fffffff
+JUDGE_MASK = 0xffff
 
-    @classmethod
-    def gen(cls, init, factor, lim=10):
+
+def gen1(init, factor):
+    """Part 1 generator style."""
+    def g(lim):
         x = init
         for _ in range(lim):
-            x = (x * factor) % cls.MODULUS
+            x = (x * factor) % MODULUS
             yield x
+    return g
 
-    @classmethod
-    def judge(cls, val1, f1, val2, f2, lim=10):
-        return len([
-            True for (x1, x2) in zip(cls.gen(val1, f1, lim), cls.gen(val2, f2, lim))
-            if x1 & cls.JUDGE_MASK == x2 & cls.JUDGE_MASK
-        ])
+
+def gen2(init, factor, mod):
+    """Part 2 generator style."""
+    def g(lim):
+        x = init
+        for _ in range(lim):
+            x = (x * factor) % MODULUS
+            while x % mod:
+                x = (x * factor) % MODULUS
+            yield x
+    return g
+
+
+def judge(g1, g2, lim=5):
+    """
+    Given 2 generator functions, runs them for lim iteratons
+    and compares the low 16 bits of each. Returns count of matches.
+    """
+    return len([
+        True for (x1, x2) in zip(g1(lim), g2(lim))
+        if x1 & JUDGE_MASK == x2 & JUDGE_MASK
+    ])
 
 
 GEN_A_FACTOR = 16807
 GEN_B_FACTOR = 48271
+
+GEN_A_MOD = 4
+GEN_B_MOD = 8
 
 
 def part1(input_lines):
@@ -164,8 +180,17 @@ def part1(input_lines):
     """
     init1 = int(re.search(r"(\d+)", input_lines[0]).group(1))
     init2 = int(re.search(r"(\d+)", input_lines[1]).group(1))
-    return DuelingGens.judge(init1, GEN_A_FACTOR, init2, GEN_B_FACTOR, 40000000)
+    g1 = gen1(init1, GEN_A_FACTOR)
+    g2 = gen1(init2, GEN_B_FACTOR)
+    return judge(g1, g2, lim=40000000)
 
 
 def part2(input_lines):
-    return "Unsolved"
+    """
+    Same thing, slightly different generators, lower limit.
+    """
+    init1 = int(re.search(r"(\d+)", input_lines[0]).group(1))
+    init2 = int(re.search(r"(\d+)", input_lines[1]).group(1))
+    g1 = gen2(init1, GEN_A_FACTOR, GEN_A_MOD)
+    g2 = gen2(init2, GEN_B_FACTOR, GEN_B_MOD)
+    return judge(g1, g2, lim=5000000)
