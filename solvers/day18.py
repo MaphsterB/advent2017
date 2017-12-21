@@ -72,24 +72,21 @@ value?
 """
 
 
+import multiprocessing as mp
+import queue
 import re
 
 
-regs = {}
-notes = []
-recs = []
-ip = 0
-
-class DuetVM:
+class BadDuetVM():
     """Simulator VM for Part 1"""
+
+    INSTR_RX = re.compile(r"(snd|set|add|mul|mod|rcv|jgz)\s+(\S+)(?:\s+(\S+))?")
 
     def __init__(self):
         self.regs = {}
         self.played = []
         self.recovers = []
         self.ip = 0
-
-    INSTR_RX = re.compile(r"(snd|set|add|mul|mod|rcv|jgz)\s+(\S+)(?:\s+(\S+))?")
 
     @classmethod
     def parse(cls, lines):
@@ -103,6 +100,12 @@ class DuetVM:
             program.append((method, args))
         return program
 
+    def fet(self, x):
+        try:
+            return int(x)
+        except ValueError:
+            return self.regs.get(x, 0)
+
     def execute(self, program, debug=False):
         while 0 <= self.ip < len(program):
             (method, args) = program[self.ip]
@@ -112,12 +115,6 @@ class DuetVM:
             if ret is not None:
                 return self.recovers[0]
             self.ip += 1
-
-    def fet(self, x):
-        try:
-            return int(x)
-        except ValueError:
-            return self.regs.get(x, 0)
 
     def snd(self, x):
         self.played.append(self.fet(x))
@@ -144,14 +141,116 @@ class DuetVM:
             self.ip += self.fet(y) - 1
 
 
+class DuetVM(BadDuetVM):
+    """Overrides the 'incorrect' parts."""
+
+    ASK_TO_WAIT = 1
+    DONE_WAITING = 2
+    TERMINATING = 3
+
+    def __init__(self, id_):
+        self.regs = {}
+        self.ip = 0
+        self.sent = []
+        self.received = []
+        self.queue = mp.Queue()
+        self.proc = None
+        self.partner = None
+        self.lock = None
+
+    def start(self, program, pipe_conn, debug=False):
+        self.proc = mp.Process(
+            target=self.execute,
+            args=[program, pipe_conn],
+            kwargs=dict(debug=debug),
+        )
+        self.proc.start()
+
+    def join(self):
+        return self.proc.join()
+
+    def execute(self, program, pipe_conn, debug=False):
+        while 0 <= self.ip < len(program):
+            (method, args) = program[self.ip]
+            if debug:
+                print(method.__name__, args)
+            # If both rcv at the same time, we deadlock.
+            # Ask permission before waiting.
+            if method.__name__ == "rcv":
+                if not self.lock.acquire(block=True, timeout=0.1):
+                    print(self, "QUIT")
+                    break
+                ret = method.__call__(self, *args)
+                if ret:
+                    break
+                self.lock.release()
+            else:
+                method.__call__(self, *args)
+            self.ip += 1
+        pipe_conn.send(self.ip)
+        pipe_conn.send(self.sent)
+        pipe_conn.send(self.received)
+
+    def pair(self, partner):
+        self.lock = mp.Semaphore()
+        partner.lock = self.lock
+        self.partner = partner
+        partner.partner = self
+
+    def snd(self, x):
+        val = self.fet(x)
+        self.partner.queue.put(val)
+        self.sent.append(val)
+
+    def rcv(self, x):
+        try:
+            val = self.queue.get(timeout=2)
+        except queue.Empty:
+            return True
+        self.regs[x] = val
+        self.received.append(val)
+
+
+class DuetCoordinator:
+    """Manages two duet subprocesses to detect deadlock."""
+
+    def __init__(self):
+        self.vm0 = DuetVM(0)
+        self.vm1 = DuetVM(1)
+        self.vm0.pair(self.vm1)
+        self.vm0_waiting = False
+        self.vm1_waiting = False
+
+    def run(self, program, debug=False):
+        # Talk to both subprocesses
+        (recv0, send0) = mp.Pipe(duplex=False)
+        (recv1, send1) = mp.Pipe(duplex=False)
+        self.vm0.start(program, send0, debug=debug)
+        self.vm1.start(program, send1, debug=debug)
+        self.vm0.ip = recv0.recv()
+        self.vm0.sent = recv0.recv()
+        self.vm0.received = recv0.recv()
+        self.vm1.ip = recv1.recv()
+        self.vm1.sent = recv1.recv()
+        self.vm1.received = recv1.recv()
+        self.vm0.join()
+        self.vm1.join()
+
+
 def part1(input_lines):
     """
-    Run a duet VM until it halts.
+    Run a bad duet VM until it executes a rcv instruction.
     """
-    vm = DuetVM()
-    program = DuetVM.parse(input_lines)
+    vm = BadDuetVM()
+    program = BadDuetVM.parse(input_lines)
     return vm.execute(program)
 
 
 def part2(input_lines):
-    return "Unsolved"
+    """
+    Run two correct duet VM's until both terminate (or deadlock).
+    """
+    c = DuetCoordinator()
+    program = DuetVM.parse(input_lines)
+    c.run(program)
+    return len(c.vm1.sent)
